@@ -230,7 +230,7 @@
             // now insert into DB
             Console.WriteLine("Populate Items? (Y|N)");
             var key = Console.ReadKey();
-            if (key.KeyChar == 'Y')
+            if (key.KeyChar == 'y')
             {
                 PopulateItemsTable(transList);
             }
