@@ -250,9 +250,14 @@
                     // var cmd = new MySqlCommand(insertSql);
                     foreach (var trans in transList)
                     {
+                        if (trans.Tid == 51)
+                        {
+                            break;
+                        }
+
                         Console.WriteLine("Inserting item#{0} into Items table...", trans.Tid);
                         var cmd = new MySqlCommand(insertSql, conn);
-                        cmd.Parameters.AddWithValue("idval", trans.Tid);
+                        cmd.Parameters.AddWithValue("idval", trans.Tid - 1);
                         cmd.Parameters.AddWithValue("nameval", "name" + trans.Tid);
                         cmd.ExecuteNonQuery();
                     }
@@ -273,7 +278,7 @@
                 try
                 {
                     conn.Open();
-                    var insertSql = @"INSERT INTO itemsets (iditemsets, itemID) VALUES (@transID, @itemID)";
+                    var insertSql = @"INSERT INTO itemsets (transID, itemID) VALUES (@transID, @itemID)";
 
                     foreach (var trans in list)
                     {
