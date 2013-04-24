@@ -6,9 +6,12 @@
     using System.Linq;
     using System.Text;
     using System.Threading.Tasks;
+    using System.Windows.Forms;
 
     using MongoDB.Driver;
     using MongoDB.Bson;
+
+    using MySql.Data.MySqlClient;
 
     /// <summary>
     /// Main Console Program Class
@@ -129,13 +132,6 @@
         {
             var datafile = GetDatafilePath();
 
-            //var filetxtArray = File.ReadAllLines(datafile);
-
-            //foreach (var s in filetxtArray)
-            //{
-            //    var index = s.Substring(0, s.IndexOf(","));
-            //}
-
             // Connect to Mongo server and inserts into collection named "receipts"
             const string ConnStr = "mongodb://localhost:27017";
             var clt = new MongoClient(ConnStr);
@@ -207,11 +203,93 @@
         }
 
         /// <summary>
-        /// Grabs some parameters from user and inserts data into mysql
+        /// Grabs some parameters from user and inserts data into MySQL
         /// </summary>
         private static void DataToMysql()
         {
             var datafile = GetDatafilePath();
+
+            var transList = new List<Transaction>();
+
+            using (var reader = new StreamReader(datafile))
+            {
+                string line;
+                string[] row;
+                
+                while ((line = reader.ReadLine()) != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        row = line.Split(',');
+                        var t = CreateTrans(row);
+                        transList.Add(t);
+                    }
+                }
+            }
+
+            // now insert into DB
+            Console.WriteLine("Populate Items? (Y|N)");
+            var key = Console.ReadKey();
+            if (key.KeyChar == 'Y')
+            {
+                PopulateItemsTable(transList);
+            }
+
+            InsertIntoMysql(transList);
+        }
+
+        private static void PopulateItemsTable(List<Transaction> transList)
+        {
+            using (var conn = new MySqlConnection("server=localhost;user=cesar;database=DataMiningDb;port=3306;password=tobytobias;"))
+            {
+                try
+                {
+                    conn.Open();
+                    var insertSql = @"INSERT INTO itemstbl (id, name) VALUES (@idval, @nameval)";
+                    
+                    // var cmd = new MySqlCommand(insertSql);
+                    foreach (var trans in transList)
+                    {
+                        var cmd = new MySqlCommand(insertSql, conn);
+                        cmd.Parameters.AddWithValue("idval", trans.Tid);
+                        cmd.Parameters.AddWithValue("nameval", "name" + trans.Tid);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Something went wrong with MySQL:\n" + e.Message);
+                    Console.WriteLine("There was an error with MySQL!");
+                }
+            } // Connection should be auto-closed   
+        }
+
+
+        private static void InsertIntoMysql(List<Transaction> t)
+        {
+            using (var conn = new MySqlConnection("server=localhost;user=cesar;database=DataMiningDb;port=3306;password=tobytobias;"))
+            {
+                try
+                {
+                    conn.Open();
+                    var insertSQL = @"INSERT INTO itemstbl (id, name) VALUES ()";
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Something went wrong with MySQL:\n" + e.Message);
+                    Console.WriteLine("There was an error with MySQL!");
+                }
+            } // Connection should be auto-closed
+        }
+
+        /// <summary>
+        /// Inserts rows into mySQL
+        /// </summary>
+        /// <param name="row">The row</param>
+        /// <returns>current transaction row</returns>
+        private static Transaction CreateTrans(string[] row)
+        {
+            return new Transaction(row);
         }
     }
 }
