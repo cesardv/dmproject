@@ -40,6 +40,10 @@
 
         }
 
+        /// <summary>
+        /// Shows main Menu of options and returns true if user intends to continue
+        /// </summary>
+        /// <returns>Boolean indicates whether user wants to continue</returns>
         private static bool ShowMainMenu()
         {
             Console.WriteLine("\n***************************************************************");
@@ -123,13 +127,7 @@
         /// </summary>
         private static void DataToMongo()
         {
-            var datafile = string.Empty;
-            var openfilewindow = new PickAFile();
-            openfilewindow.Closing += (sender, args) => { datafile = openfilewindow.SelectedFilePath; };
-            openfilewindow.ShowDialog();
-            
-            Console.WriteLine("\nThe data file selected was: \n" + datafile);
-            Console.WriteLine("Now transforming data and inserting into a mongoDb collection...");
+            var datafile = GetDatafilePath();
 
             //var filetxtArray = File.ReadAllLines(datafile);
 
@@ -163,7 +161,25 @@
             }
 
 
-        } // End dataToMongo
+        }
+
+        /// <summary>
+        /// Just shows a File Browser dialogue in order to user to select file
+        /// </summary>
+        /// <returns>Returns string of the full data file path</returns>
+        private static string GetDatafilePath()
+        {
+            var datafile = string.Empty;
+            var openfilewindow = new PickAFile();
+            openfilewindow.Closing += (sender, args) => { datafile = openfilewindow.SelectedFilePath; };
+            openfilewindow.ShowDialog();
+
+            Console.WriteLine("\nThe data file selected was: \n" + datafile);
+            Console.WriteLine("Now transforming data and inserting into a database...");
+            return datafile;
+        }
+
+        // End dataToMongo
 
 
         /// <summary>
@@ -195,7 +211,7 @@
         /// </summary>
         private static void DataToMysql()
         {
-            Console.WriteLine("Oops an error was encountered...");
+            var datafile = GetDatafilePath();
         }
     }
 }
