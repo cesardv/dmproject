@@ -228,7 +228,7 @@
             }
 
             // now insert into DB
-            Console.WriteLine("Populate Items? (Y|N)");
+            Console.WriteLine("Populate Items List? (Y|N)");
             var key = Console.ReadKey();
             if (key.KeyChar == 'y')
             {
@@ -250,6 +250,7 @@
                     // var cmd = new MySqlCommand(insertSql);
                     foreach (var trans in transList)
                     {
+                        Console.WriteLine("Inserting item#{0} into Items table...", trans.Tid);
                         var cmd = new MySqlCommand(insertSql, conn);
                         cmd.Parameters.AddWithValue("idval", trans.Tid);
                         cmd.Parameters.AddWithValue("nameval", "name" + trans.Tid);
@@ -265,14 +266,35 @@
         }
 
 
-        private static void InsertIntoMysql(List<Transaction> t)
+        private static void InsertIntoMysql(List<Transaction> list)
         {
             using (var conn = new MySqlConnection("server=localhost;user=cesar;database=DataMiningDb;port=3306;password=tobytobias;"))
             {
                 try
                 {
                     conn.Open();
-                    var insertSQL = @"INSERT INTO itemstbl (id, name) VALUES ()";
+                    var insertSql = @"INSERT INTO itemsets (iditemsets, itemID) VALUES (@transID, @itemID)";
+
+                    foreach (var trans in list)
+                    {
+                        foreach (var itemId in trans.Items)
+                        {
+                            try
+                            {
+                                Console.WriteLine("Inserting item#{0} into Transaction#{1}...", itemId, trans.Tid);
+                                var cmd = new MySqlCommand(insertSql, conn);
+                                cmd.Parameters.AddWithValue("transID", trans.Tid);
+                                cmd.Parameters.AddWithValue("itemID", itemId);
+                                cmd.ExecuteNonQuery();
+                            }
+                            catch (Exception e)
+                            {
+                                MessageBox.Show("Something went wrong with MySQL:\n" + e.Message);
+                                Console.WriteLine("There was an error with MySQL!");
+                            }
+                            
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
