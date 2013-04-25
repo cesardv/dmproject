@@ -162,7 +162,7 @@ namespace AprioriMiner
 
             var large = AprioriMining.DoApriori(database, itemsunique, minsupminconf[0]);
 
-            var results = "Results: \n\n " + large.Count + " Large Itemsets obtained by Apriori\n\n";
+            var results = "Results: \n\n " + large.Count + " supported Itemsets obtained by Apriori\n\n";
             foreach (var itemset in large)
             {
                 results += itemset.ToString() + "\n";
