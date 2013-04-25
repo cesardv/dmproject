@@ -3,7 +3,7 @@
 //   Cesar Velez - Copyright 2013
 // </copyright>
 // <summary>
-//   No idea
+//   Bit class finds the 2^N subsets of an Itemset with Cardinality N using logical/bitwise AND operator (&)
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
 
@@ -13,7 +13,7 @@ namespace AprioriMiner.Models
     using System.Linq;
 
     /// <summary>
-    /// No idea
+    /// Bit class finds the 2^N subsets of an Itemset with Cardinality N using logical/bitwise AND operator (&)
     /// </summary>
     public class Bit
     {
@@ -22,6 +22,7 @@ namespace AprioriMiner.Models
             var subsets = new ItemsetCollection();
 
             int subsetCount = (int)Math.Pow(2, itemset.Count);
+
             for (int i = 0; i < subsetCount; i++)
             {
                 if (n == 0 || GetOnCount(i, itemset.Count) == n)
@@ -42,23 +43,23 @@ namespace AprioriMiner.Models
                 }
             }
 
-            return (subsets);
+            return subsets;
         }
 
         public static int GetBit(int value, int position)
         {
             int bit = value & (int)Math.Pow(2, position);
-            return (bit > 0 ? 1 : 0);
+            return bit > 0 ? 1 : 0;
         }
 
         public static string DecimalToBinary(int value, int length)
         {
-            string binary = string.Empty;
+            var binary = string.Empty;
             for (int position = 0; position < length; position++)
             {
                 binary = GetBit(value, position) + binary;
             }
-            return (binary);
+            return binary;
         }
 
         public static int GetOnCount(int value, int length)

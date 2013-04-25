@@ -1,11 +1,27 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿// --------------------------------------------------------------------------------------------------------------------
+// <copyright file="Program.cs" company="CesarVelez">
+//   Cesar Velez - Copyright 2013
+// </copyright>
+// <summary>
+//   Driver Program for AprioriMiner
+// </summary>
+// --------------------------------------------------------------------------------------------------------------------
 
 namespace AprioriMiner
 {
+    using System;
+    using System.Collections.Generic;
+
+    using AprioriMiner.Models;
+
+    using MongoDB.Bson;
+    using MongoDB.Driver;
+
+    using MySql.Data.MySqlClient;
+
+    /// <summary>
+    /// Driver Program for AprioriMiner
+    /// </summary>
     public class Program
     {
         /// <summary>
@@ -13,7 +29,7 @@ namespace AprioriMiner
         /// </summary>
         /// <param name="args">command line arguments (not used)</param>
         [STAThread]
-        static void Main(string[] args)
+        public static void Main(string[] args)
         {
 
             Console.WriteLine("===================================");
@@ -71,7 +87,7 @@ namespace AprioriMiner
             Console.WriteLine();
             Console.WriteLine("\ta)\tApriori mine MongoDB     ");
             Console.WriteLine("\tb)\tApriori mine from mysql        ");
-            Console.WriteLine("\tc)\t       ");
+           //  Console.WriteLine("\tc)\t       ");
             Console.WriteLine("\tQ)\tQuit                                     ");
             Console.WriteLine("\n***************************************************************");
 
@@ -109,7 +125,111 @@ namespace AprioriMiner
 
         private static void DataFromMongo()
         {
-            throw new NotImplementedException();
+            double[] minsupminconf = PromptForMinsupAndConf();
+            Console.WriteLine("\nConnecting to mongoDB...");
+
+            const string ConnStr = "mongodb://localhost:27017";
+            var clt = new MongoClient(ConnStr);
+            var svr = clt.GetServer();
+            var dblearn = svr.GetDatabase("learn");
+
+            // var tlist = dblearn.GetCollection("receipts");
+
+            var list = dblearn.GetCollection<Transaction>("receipts");
+
+            var all = list.FindAll();
+            var database = new ItemsetCollection();
+            foreach (var transaction in all)
+            {
+                var itemset = new Itemset();
+                foreach (var item in transaction.Items)
+                {
+                    itemset.Add(item);
+                }
+
+                database.Add(itemset);
+            }
+
+            var itemsunique = new Itemset();
+            var i = 0;
+            while (i < 50)
+            {
+                itemsunique.Add(i);
+                i++;
+            }
+
+            Console.WriteLine("Now running Apriori on fetched data...");
+
+            var large = AprioriMining.DoApriori(database, itemsunique, minsupminconf[0]);
+
+            var results = "Results: \n\n " + large.Count + " Large Itemsets obtained by Apriori\n\n";
+            foreach (var itemset in large)
+            {
+                results += itemset.ToString() + "\n";
+            }
+
+            Console.WriteLine("DONE! Now mining association rules...");
+            var allRules = AprioriMining.Mine(database, large, minsupminconf[1]);
+
+            results += "\nAssociation Rules Found: \n";
+            if (allRules.Count == 0)
+            {
+                results += "No rules were found over minconf of " + minsupminconf[1] + "%";
+            }
+            else
+            {
+                foreach (var associationRule in allRules)
+                {
+                    results += associationRule.ToString() + "\n";
+                }
+            }
+
+            Console.WriteLine(results);
+
+        }
+
+        /// <summary>
+        /// Prompts user for minsup and minconf percetages
+        /// </summary>
+        /// <returns>A double array where arr[0] is minsup and arr[1] is minconf</returns>
+        private static double[] PromptForMinsupAndConf()
+        {
+            var ans = new double[2];
+            var tries = 3;
+            while (tries > 0)
+            {
+                try
+                {
+                    Console.Write("\n\n\tPlease enter the minimum support % (minsup) (ex: 60.0 or 60): ");
+                    var minsup = Convert.ToDouble(Console.ReadLine());
+                    ans[0] = minsup;
+                    tries = 3;
+                    break;
+                }
+                catch (Exception e)
+                {
+                    Console.Write("You either did not enter a number or your number was too big! Try again...");
+                    tries--;
+                }
+            }
+            while (tries > 0)
+            {
+                try
+                {
+                    Console.Write("\n\n\tPlease enter the min. confidence % (minconf) (ex: 70.0 or 75): ");
+                    var minconf = Convert.ToDouble(Console.ReadLine());
+                    ans[1] = minconf;
+                    tries++;
+                    break;
+                }
+                catch (Exception e)
+                {
+                    Console.Write("You either did not enter a number correctly or your number was too big! Try again...");
+                    tries--;
+                }
+            }
+
+            return ans;
         }
 
         private static void DataFromMysql()
