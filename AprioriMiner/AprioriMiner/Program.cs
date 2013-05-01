@@ -11,6 +11,9 @@ namespace AprioriMiner
 {
     using System;
     using System.Collections.Generic;
+    using System.Data;
+    using System.IO;
+    using System.Linq;
 
     using AprioriMiner.Models;
 
@@ -303,27 +306,74 @@ namespace AprioriMiner
 
                     for (var i = 1; i <= rows; i++)
                     {
-                        cmd.CommandText = @"SELECT itemID FROM dataminingdb.itemsets WHERE transId=" + i;
                         
+                        cmd.CommandText = i == 1
+                                              ? (@"set profiling=1; SELECT itemID FROM dataminingdb.itemsets WHERE transId="
+                                                 + i)
+                                              : @"SELECT itemID FROM dataminingdb.itemsets WHERE transId=" + i;
+
                         var reader = cmd.ExecuteReader();
 
                         var listofItemsInRow = new Itemset();
 
                         while (reader.Read())
                         {
-                           listofItemsInRow.Add(reader.GetInt32(0));
+                            listofItemsInRow.Add(reader.GetInt32(0));
                         }
 
                         database.Add(listofItemsInRow);
                         reader.Close();
-                    }
+                        // ============== LOG PROFILER DATA
+                        cmd.CommandText = "SHOW PROFILES";
+                        var pfdata = cmd.ExecuteReader();
+                        var rs = 0;
+                        
+                        var list = new List<object[]>();
+                        while (pfdata.Read())
+                        {
+                            var rowArray = new object[pfdata.FieldCount];
+                            rs = pfdata.GetValues(rowArray);
+                            list.Add(rowArray);
+                        }
+                        using (var swrtr = new StreamWriter(@"..\..\..\MysqlProfilerLog.csv", true))
+                        {
+                            // swrtr.WriteLine(DateTime.Now + " =  LOG  Success = {0}--------------------\n", rs);
+                            // Query Number,Time,SQLStatement
+                            foreach (var stringse in list)
+                            {
+                                if (stringse[2].Equals("SHOW WARNINGS"))
+                                {
+                                    continue;
+                                }
+
+                                foreach (var s in stringse)
+                                {
+                                    swrtr.Write(s + ",");
+                                    if (stringse.ElementAt(2) == s)
+                                    {
+                                        swrtr.Write("\n");
+                                    }
+                                }
+                                // swrtr.WriteLine(Environment.NewLine);
+                            }
+
+                        }
+
+                        // ==============
+
+                        pfdata.Close();
+                        // Writing profiler info to log file
+                        // RecordLog(conn);
+                    } // End of For Loop
+
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine("There was an error: {0}\n\n Consult the help menu.", e.Message);
                 }
+            }
 
-                // database (of ItemsetCollection should now be populated and ready for mining...
+            // database (of ItemsetCollection should now be populated and ready for mining...
 
                 Console.WriteLine("Now running Apriori on fetched data...");
 
@@ -352,8 +402,38 @@ namespace AprioriMiner
                 }
 
                 Console.WriteLine(results);
+        }
 
-            }
+        /// <summary>
+        /// Uses MySQL profiler and appends to log file.
+        /// </summary>
+        /// <param name="conn">The connection to database</param>
+        private static void RecordLog(MySqlConnection conn)
+        {
+                    var profileCmd = conn.CreateCommand();
+                    profileCmd.CommandText = "SHOW PROFILES";
+                    var pfdata = profileCmd.ExecuteReader();
+                    var rs = 0;
+                    var rowArray = new object[pfdata.FieldCount];
+                    var list = new List<object[]>();
+                    while (pfdata.Read())
+                    {
+                        rs = pfdata.GetValues(rowArray);
+                        list.Add(rowArray);
+                    }
+                    using (var swrtr = new StreamWriter(@"..\..\..\MysqlProfilerLog.txt", true))
+                    {
+                        // swrtr.WriteLine(DateTime.Now + " =  LOG  Success = {0}--------------------\n", rs);
+                        foreach (var stringse in list)
+                        {
+                            foreach (var s in stringse)
+                            {
+                                swrtr.Write(s + ", ");
+                            }
+                            swrtr.WriteLine(Environment.NewLine);
+                        }
+
+                    }
         }
 
         private static int CountTransactions(MySqlConnection conn)
