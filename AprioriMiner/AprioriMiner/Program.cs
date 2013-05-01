@@ -289,8 +289,28 @@ namespace AprioriMiner
         private static void DataFromMysql()
         {
             double[] minsupminconf = PromptForMinsupAndConf();
-            
-            Console.WriteLine("Connecting to mysql server....");
+            var tablechosen = PromptForDatasetSize();
+            var tableToMine = string.Empty;
+            switch (tablechosen)
+            {
+                case 1:
+                    tableToMine = "itemsets";
+                    break;
+                case 5:
+                    tableToMine = "itemsets5k";
+                    break;
+                case 20:
+                    tableToMine = "itemsets20k";
+                    break;
+                case 75:
+                    tableToMine = "itemsets75k";
+                    break;
+                default:
+                    Console.WriteLine("Whooops something very bad has happened... Try again.");
+                    return;
+            }
+
+            Console.WriteLine("Connecting to mysql server.... Trying to find table with {0}K transactions", tablechosen);
             var database = new ItemsetCollection();
 
             using (var conn = new MySqlConnection("server=localhost;user=dmuser;database=DataMiningDb;port=3306;password=data;"))
@@ -300,7 +320,7 @@ namespace AprioriMiner
                     conn.Open();
                     var rows = 0;
 
-                    rows = CountTransactions(conn);
+                    rows = CountTransactions(conn, tableToMine);
 
                     var cmd = conn.CreateCommand();
 
@@ -308,9 +328,9 @@ namespace AprioriMiner
                     {
                         
                         cmd.CommandText = i == 1
-                                              ? (@"set profiling=1; SELECT itemID FROM dataminingdb.itemsets WHERE transId="
+                                              ? (@"set profiling=1; SELECT itemID FROM dataminingdb." + tableToMine + " WHERE transId="
                                                  + i)
-                                              : @"SELECT itemID FROM dataminingdb.itemsets WHERE transId=" + i;
+                                              : @"SELECT itemID FROM dataminingdb." + tableToMine + " WHERE transId=" + i;
 
                         var reader = cmd.ExecuteReader();
 
@@ -404,6 +424,47 @@ namespace AprioriMiner
                 Console.WriteLine(results);
         }
 
+        private static int PromptForDatasetSize()
+        {
+            while (true)
+            {
+                Console.WriteLine("\nAvailable Dataset (sizes)\n***************************************************************");
+                Console.WriteLine();
+                Console.WriteLine("\ta)\t1000 Transactions    ");
+                Console.WriteLine("\tb)\t5000 Transactions           ");
+                Console.WriteLine("\tc)\t20,000 Transactions          ");
+                Console.WriteLine("\td)\t75,000 Transactions                                        ");
+                Console.WriteLine("\n***************************************************************");
+
+                Console.Write("From the Above Choices, choose the dataset size you want to mine: ");
+                var ans = Convert.ToString(Console.ReadKey().KeyChar);
+                Console.WriteLine();
+
+                switch (ans)
+                {
+                    case "a":
+                    case "A":
+                        return 1;
+                        break;
+                    case "b":
+                    case "B":
+                        return 5;
+                        break;
+                    case "c":
+                    case "C":
+                        return 20;
+                        break;
+                    case "d":
+                    case "D":
+                        return 75;
+                        break;
+                    default:
+                        Console.WriteLine("\n\nYour entry was not valid, please try again.");
+                        break;
+                }
+            }
+        }
+
         /// <summary>
         /// Uses MySQL profiler and appends to log file.
         /// </summary>
@@ -436,11 +497,17 @@ namespace AprioriMiner
                     }
         }
 
-        private static int CountTransactions(MySqlConnection conn)
+        /// <summary>
+        /// counts the table's rows
+        /// </summary>
+        /// <param name="conn">connection to database</param>
+        /// <param name="tblname">name of table we'll query</param>
+        /// <returns>Number of rows/transaction found</returns>
+        private static int CountTransactions(MySqlConnection conn, string tblname)
         {
             
             var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT transID, COUNT( DISTINCT transID) FROM dataminingdb.itemsets";
+            cmd.CommandText = "SELECT transID, COUNT( DISTINCT transID) FROM dataminingdb." + tblname;
             var data = cmd.ExecuteReader();
             if (data.Read())
             {
