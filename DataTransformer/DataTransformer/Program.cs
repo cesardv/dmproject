@@ -52,7 +52,7 @@
             Console.WriteLine("\n***************************************************************");
             Console.WriteLine("\n\tMAIN MENU OPTIONS: ");
             Console.WriteLine();
-            Console.WriteLine("\ta)\tProcess data into MongoDB (JSON or BSON format)    ");
+            Console.WriteLine("\ta)\tProcess data into MongoDB    ");
             Console.WriteLine("\tb)\tProcess data into mysql        ");
             Console.WriteLine("\tc)\tCheck out a little test        ");
             Console.WriteLine("\tQ)\tQuit                                     ");
