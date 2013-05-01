@@ -132,16 +132,21 @@ namespace AprioriMiner
         /// </summary>
         private static void DisplayHelpInfo()
         {
+            Console.Clear();
+            Console.WriteLine("=============================================\n\tHelp/Info Menu\n=============================================\n");
             Console.WriteLine(
                 "For this program to be able to mine using Apriori correctly, the following must be true:");
             Console.WriteLine(
-                "\t-A MongoDB server with a db called 'learn' must be running on default localhost 27017 port. \n'receipts' is the collection name.\n");
+                "\t1) A MongoDB server with a db called 'learn' must be running on default localhost 27017 port. \n'receipts' is the collection name.\n");
             Console.WriteLine(
-                "\t-Transaction Data in csv format located in the '\\data\\' folder should be inserted into tha 'receipts' collection via the DataTransformer program.\n");
+                "\t2) Transaction Data in csv format located in the '\\data\\' folder should be inserted into tha 'receipts' collection via the DataTransformer program.\n");
+            
+            Console.WriteLine("\t***NOTE:MongoDB is embedded with this app and should run automatically via the RunAprioriMiner.bat commands.\nMake sure you allow mongod.exe to connect thru private (local) network if Windows Firewall prompts you. It uses the localhost(127.0.0.1) to get connections locally.");
+            Console.WriteLine(
+                "For MySQL, (ver. 5.6) a local server named 'mysql56' with a database called 'dataminingdb' which has an 'itemstbl', and 'itemsets' tables.");
+            Console.WriteLine("Connect to that server using username: dmuser, and pwd='data'.");
 
-            Console.WriteLine(
-                "For MySQL, ver. 5.6 local server named 'mysql56' with a database called 'dataminingdb' which has an 'itemstbl', 'itemsets' tables.");
-            Console.WriteLine("Connect to that server using username: dmuser, and blank pwd.");
+            Console.WriteLine("If you have any questions on how to run this please email me at cvelez2@student.gsu.edu - thanks.");
 
         }
 
@@ -150,26 +155,36 @@ namespace AprioriMiner
             double[] minsupminconf = PromptForMinsupAndConf();
             Console.WriteLine("\nConnecting to mongoDB...");
 
-            const string ConnStr = "mongodb://localhost:27017";
-            var clt = new MongoClient(ConnStr);
-            var svr = clt.GetServer();
-            var dblearn = svr.GetDatabase("learn");
-
-            // var tlist = dblearn.GetCollection("receipts");
-
-            var list = dblearn.GetCollection<Transaction>("receipts");
-
-            var all = list.FindAll();
             var database = new ItemsetCollection();
-            foreach (var transaction in all)
+            try
             {
-                var itemset = new Itemset();
-                foreach (var item in transaction.Items)
-                {
-                    itemset.Add(item);
-                }
+                const string ConnStr = "mongodb://localhost:27017";
+                var clt = new MongoClient(ConnStr);
+                var svr = clt.GetServer();
+                var dblearn = svr.GetDatabase("learn");
 
-                database.Add(itemset);
+                // var tlist = dblearn.GetCollection("receipts");
+
+                var list = dblearn.GetCollection<Transaction>("receipts");
+
+                var all = list.FindAll();
+                
+                foreach (var transaction in all)
+                {
+                    var itemset = new Itemset();
+                    foreach (var item in transaction.Items)
+                    {
+                        itemset.Add(item);
+                    }
+
+                    database.Add(itemset);
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("There was an error, here are the details: \n=====================Error Stuff Here=====================\n" + e.Message + "\n==========================================================");
+                Console.WriteLine("Is the mongodb server running?? See the Help/Info section for help...");
+                return;
             }
 
             var itemsunique = CreateSetOfUniqueItems();
@@ -289,7 +304,7 @@ namespace AprioriMiner
                     for (var i = 1; i <= rows; i++)
                     {
                         cmd.CommandText = @"SELECT itemID FROM dataminingdb.itemsets WHERE transId=" + i;
-                        cmd.Parameters.AddWithValue("IdTrans", i);
+                        
                         var reader = cmd.ExecuteReader();
 
                         var listofItemsInRow = new Itemset();
@@ -300,6 +315,7 @@ namespace AprioriMiner
                         }
 
                         database.Add(listofItemsInRow);
+                        reader.Close();
                     }
                 }
                 catch (Exception e)
