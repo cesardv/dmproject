@@ -32,6 +32,15 @@
         }
 
         /// <summary>
+        /// Initializes a new instance of the <see cref="Transaction"/> class with it's TID
+        /// </summary>
+        /// <param name="tid">Id of transaction</param>
+        public Transaction(int tid)
+        {
+            this.Tid = tid;
+        }
+
+        /// <summary>
         /// Gets or sets the 'simple' Id of this
         /// </summary>
         public int Tid { get; set; }

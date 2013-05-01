@@ -35,6 +35,9 @@ namespace AprioriMiner
             Console.WriteLine("===================================");
             Console.WriteLine("  Welcome to AprioriMiner v1.0");
             Console.WriteLine("===================================");
+            Console.WriteLine(
+                "To run this program correctly the DataTransformer program must have been run correctly\nIf so, proceed...");
+
 
             var showMenu = true;
 
@@ -87,7 +90,7 @@ namespace AprioriMiner
             Console.WriteLine();
             Console.WriteLine("\ta)\tApriori mine MongoDB     ");
             Console.WriteLine("\tb)\tApriori mine from mysql        ");
-           //  Console.WriteLine("\tc)\t       ");
+            Console.WriteLine("\tc)\tHelp/Info/About       ");
             Console.WriteLine("\tQ)\tQuit                                     ");
             Console.WriteLine("\n***************************************************************");
 
@@ -108,19 +111,38 @@ namespace AprioriMiner
                     cont = PromptToContinue();
                     break;
                 case "c":
-                //case "C":
-                //    LittleTest();
-                //    cont = PromptToContinue();
-                //    break;
+                case "C":
+                    DisplayHelpInfo();
+                    cont = PromptToContinue();
+                    break;
                 case "q":
                 case "Q":
                     Console.WriteLine("\nQuitting...");
                     cont = false;
                     break;
-                default: Console.WriteLine("\n\nYour entry was not valid, please try again.");
+                default:
+                    Console.WriteLine("\n\nYour entry was not valid, please try again.");
                     break;
             }
             return cont;
+        }
+
+        /// <summary>
+        /// Displays program info and help content
+        /// </summary>
+        private static void DisplayHelpInfo()
+        {
+            Console.WriteLine(
+                "For this program to be able to mine using Apriori correctly, the following must be true:");
+            Console.WriteLine(
+                "\t-A MongoDB server with a db called 'learn' must be running on default localhost 27017 port. \n'receipts' is the collection name.\n");
+            Console.WriteLine(
+                "\t-Transaction Data in csv format located in the '\\data\\' folder should be inserted into tha 'receipts' collection via the DataTransformer program.\n");
+
+            Console.WriteLine(
+                "For MySQL, ver. 5.6 local server named 'mysql56' with a database called 'dataminingdb' which has an 'itemstbl', 'itemsets' tables.");
+            Console.WriteLine("Connect to that server using username: dmuser, and blank pwd.");
+
         }
 
         private static void DataFromMongo()
@@ -224,7 +246,8 @@ namespace AprioriMiner
                 }
                 catch (Exception e)
                 {
-                    Console.Write("You either did not enter a number correctly or your number was too big! Try again...");
+                    Console.Write(
+                        "You either did not enter a number correctly or your number was too big! Try again...");
                     tries--;
                 }
             }
@@ -232,9 +255,67 @@ namespace AprioriMiner
             return ans;
         }
 
+        /// <summary>
+        /// Connects to MySQL in order to run AprioriMiner
+        /// </summary>
         private static void DataFromMysql()
         {
-            Console.WriteLine("Can't do this right now... try again later");
+            Console.WriteLine("Connecting to mysql server....");
+            var database = new ItemsetCollection();
+
+            using (var conn = new MySqlConnection("server=localhost;user=dmuser;database=DataMiningDb;port=3306;password=data;"))
+            {
+                try
+                {
+                    conn.Open();
+                    var rows = 0;
+
+                    rows = CountTransactions(conn);
+
+                    var cmd = conn.CreateCommand();
+
+                    for (var i = 1; i <= rows; i++)
+                    {
+                        cmd.CommandText = @"SELECT itemID FROM dataminingdb.itemsets WHERE transId=" + i;
+                        cmd.Parameters.AddWithValue("IdTrans", i);
+                        var reader = cmd.ExecuteReader();
+
+                        var trans = new Transaction(i);
+                        var itemsinrecord = new List<int>();
+
+                        while (reader.Read())
+                        {
+                           itemsinrecord.Add(reader.GetInt32(0));
+                        }
+
+                        trans.Items = itemsinrecord.ToArray();
+                        // database.Add(trans);
+                    }
+
+                    
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("There was an error: {0}", e.Message);
+                }
+            }
+        }
+
+        private static int CountTransactions(MySqlConnection conn)
+        {
+            
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT transID, COUNT( DISTINCT transID) FROM dataminingdb.itemsets";
+            var data = cmd.ExecuteReader();
+            if (data.Read())
+            {
+                var numTrans = data.GetInt32(1);
+                Console.WriteLine("Found {0} transactions...\n", numTrans);
+                data.Close();
+                return numTrans;
+            }
+
+            throw new Exception("There was an error...");
         }
     }
 }
