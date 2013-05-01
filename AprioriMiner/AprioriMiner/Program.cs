@@ -172,13 +172,7 @@ namespace AprioriMiner
                 database.Add(itemset);
             }
 
-            var itemsunique = new Itemset();
-            var i = 0;
-            while (i < 50)
-            {
-                itemsunique.Add(i);
-                i++;
-            }
+            var itemsunique = CreateSetOfUniqueItems();
 
             Console.WriteLine("Now running Apriori on fetched data...");
 
@@ -208,6 +202,22 @@ namespace AprioriMiner
 
             Console.WriteLine(results);
 
+        }
+
+        /// <summary>
+        /// Helper method for Apriori algorithm which just creates our itemset
+        /// </summary>
+        /// <returns></returns>
+        private static Itemset CreateSetOfUniqueItems()
+        {
+            var itemsunique = new Itemset();
+            var i = 0;
+            while (i < 50)
+            {
+                itemsunique.Add(i);
+                i++;
+            }
+            return itemsunique;
         }
 
         /// <summary>
@@ -260,6 +270,8 @@ namespace AprioriMiner
         /// </summary>
         private static void DataFromMysql()
         {
+            double[] minsupminconf = PromptForMinsupAndConf();
+            
             Console.WriteLine("Connecting to mysql server....");
             var database = new ItemsetCollection();
 
@@ -280,24 +292,51 @@ namespace AprioriMiner
                         cmd.Parameters.AddWithValue("IdTrans", i);
                         var reader = cmd.ExecuteReader();
 
-                        var trans = new Transaction(i);
-                        var itemsinrecord = new List<int>();
+                        var listofItemsInRow = new Itemset();
 
                         while (reader.Read())
                         {
-                           itemsinrecord.Add(reader.GetInt32(0));
+                           listofItemsInRow.Add(reader.GetInt32(0));
                         }
 
-                        trans.Items = itemsinrecord.ToArray();
-                        // database.Add(trans);
+                        database.Add(listofItemsInRow);
                     }
-
-                    
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine("There was an error: {0}", e.Message);
+                    Console.WriteLine("There was an error: {0}\n\n Consult the help menu.", e.Message);
                 }
+
+                // database (of ItemsetCollection should now be populated and ready for mining...
+
+                Console.WriteLine("Now running Apriori on fetched data...");
+
+                var large = AprioriMining.DoApriori(database, CreateSetOfUniqueItems(), minsupminconf[0]);
+
+                var results = "Results: \n\n " + large.Count + " supported Itemsets obtained by Apriori\n\n";
+                foreach (var itemset in large)
+                {
+                    results += itemset.ToString() + "\n";
+                }
+
+                Console.WriteLine("DONE! Now mining association rules...");
+                var allRules = AprioriMining.Mine(database, large, minsupminconf[1]);
+
+                results += "\nAssociation Rules Found: \n";
+                if (allRules.Count == 0)
+                {
+                    results += "No rules were found over minconf of " + minsupminconf[1] + "%";
+                }
+                else
+                {
+                    foreach (var associationRule in allRules)
+                    {
+                        results += associationRule.ToString() + "\n";
+                    }
+                }
+
+                Console.WriteLine(results);
+
             }
         }
 
