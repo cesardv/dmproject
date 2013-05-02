@@ -156,9 +156,34 @@ namespace AprioriMiner
         private static void DataFromMongo()
         {
             double[] minsupminconf = PromptForMinsupAndConf();
+            var collneeded = PromptForDatasetSize();
+            var collectionNeeded = string.Empty;
+            switch (collneeded)
+            {
+                case 1:
+                    collectionNeeded = "receipts1k";
+                    break;
+                case 5:
+                    collectionNeeded = "receipts5k";
+                    break;
+                case 20:
+                    collectionNeeded = "receipts20k";
+                    break;
+                case 75:
+                    collectionNeeded = "receipts75k";
+                    break;
+                case 0:
+                    collectionNeeded = "receipts";
+                    break;
+                default:
+                    Console.WriteLine("Whooops something very bad has happened... Try again.");
+                    return;
+            }
+
             Console.WriteLine("\nConnecting to mongoDB...");
 
             var database = new ItemsetCollection();
+            var start = DateTime.Now;
             try
             {
                 const string ConnStr = "mongodb://localhost:27017";
@@ -168,8 +193,8 @@ namespace AprioriMiner
 
                 // var tlist = dblearn.GetCollection("receipts");
 
-                var list = dblearn.GetCollection<Transaction>("receipts");
-
+                var list = dblearn.GetCollection<Transaction>(collectionNeeded);
+                Console.WriteLine("Found Data!\nCollection Name: {0}\nSize: {1}", collectionNeeded, list.Count());
                 var all = list.FindAll();
                 
                 foreach (var transaction in all)
@@ -190,8 +215,12 @@ namespace AprioriMiner
                 return;
             }
 
+            var endqueryT = DateTime.Now;
+            var totalQueryT = start.Subtract(endqueryT);
+
             var itemsunique = CreateSetOfUniqueItems();
 
+            Console.WriteLine("Disconnected from MongoDB server at {0}.\n Total query time was: {1}", endqueryT.ToLocalTime(), totalQueryT);
             Console.WriteLine("Now running Apriori on fetched data...");
 
             var large = AprioriMining.DoApriori(database, itemsunique, minsupminconf[0]);
@@ -219,6 +248,8 @@ namespace AprioriMiner
             }
 
             Console.WriteLine(results);
+            var finaltimeEnd = DateTime.Now;
+            Console.Write("It's now: {0}.\n\nTotal Apriori time was: {1}",finaltimeEnd.ToLocalTime(), endqueryT.Subtract(finaltimeEnd));
 
         }
 
@@ -312,6 +343,9 @@ namespace AprioriMiner
 
             Console.WriteLine("Connecting to mysql server.... Trying to find table with {0}K transactions", tablechosen);
             var database = new ItemsetCollection();
+            
+            var timeStartQuery = DateTime.Now;
+            Console.Write("Started querying DB at " + timeStartQuery.ToLocalTime());
 
             using (var conn = new MySqlConnection("server=localhost;user=dmuser;database=DataMiningDb;port=3306;password=data;"))
             {
@@ -394,34 +428,37 @@ namespace AprioriMiner
             }
 
             // database (of ItemsetCollection should now be populated and ready for mining...
+            var endQueryT = DateTime.Now;
 
-                Console.WriteLine("Now running Apriori on fetched data...");
+            Console.WriteLine("\aEnded queries at: {0}\nTime elapsed: {1}\n\nNow running Apriori on fetched data...", endQueryT.ToLocalTime(), endQueryT.Subtract(timeStartQuery));
 
-                var large = AprioriMining.DoApriori(database, CreateSetOfUniqueItems(), minsupminconf[0]);
+            var large = AprioriMining.DoApriori(database, CreateSetOfUniqueItems(), minsupminconf[0]);
 
-                var results = "Results: \n\n " + large.Count + " supported Itemsets obtained by Apriori\n\n";
-                foreach (var itemset in large)
+            var results = "Results: \n\n " + large.Count + " supported Itemsets obtained by Apriori\n\n";
+            foreach (var itemset in large)
+            {
+                results += itemset.ToString() + "\n";
+            }
+
+            Console.WriteLine("DONE! Now mining association rules...");
+            var allRules = AprioriMining.Mine(database, large, minsupminconf[1]);
+
+            results += "\nAssociation Rules Found: \n";
+            if (allRules.Count == 0)
+            {
+                results += "No rules were found over minconf of " + minsupminconf[1] + "%";
+            }
+            else
+            {
+                foreach (var associationRule in allRules)
                 {
-                    results += itemset.ToString() + "\n";
+                    results += associationRule.ToString() + "\n";
                 }
+            }
 
-                Console.WriteLine("DONE! Now mining association rules...");
-                var allRules = AprioriMining.Mine(database, large, minsupminconf[1]);
-
-                results += "\nAssociation Rules Found: \n";
-                if (allRules.Count == 0)
-                {
-                    results += "No rules were found over minconf of " + minsupminconf[1] + "%";
-                }
-                else
-                {
-                    foreach (var associationRule in allRules)
-                    {
-                        results += associationRule.ToString() + "\n";
-                    }
-                }
-
-                Console.WriteLine(results);
+            Console.WriteLine(results);
+            var finaltimeEnd = DateTime.Now;
+            Console.Write("Total Apriori time was: {0}", endQueryT.Subtract(finaltimeEnd));
         }
 
         private static int PromptForDatasetSize()

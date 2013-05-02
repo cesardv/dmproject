@@ -8,8 +8,9 @@
     using System.Threading.Tasks;
     using System.Windows.Forms;
 
-    using MongoDB.Driver;
     using MongoDB.Bson;
+    using MongoDB.Driver;
+    using MongoDB.Driver.Builders;
 
     using MySql.Data.MySqlClient;
 
@@ -95,7 +96,23 @@
         /// </summary>
         private static void LittleTest()
         {
-            Console.WriteLine("This is under construction... sorry");
+            Console.WriteLine("This is queries the mongoDB system.profile collection for performance data...");
+            const string ConnStr = "mongodb://localhost:27017";
+            var clt = new MongoClient(ConnStr);
+            var svr = clt.GetServer();
+            var db = svr.GetDatabase("learn");
+            var col = db.GetCollection<BsonDocument>("system.profile");
+            
+            //var strDump = col.FindAll().ToJson();
+            //File.WriteAllText(@"..\..\sysPF-" + DateTime.Now.Ticks + ".log", strDump);
+            //var t = new { millis = 0 };
+            //var q = BsonDocument.Create("{'op':'insert'}");
+            var qb = Query.EQ("op", "insert");
+            var results = col.Find(qb);
+            var jsonStr = results.ToJson();
+            var path = @"..\..\sysPF-" + DateTime.Now.Ticks + ".log";
+            File.WriteAllText(path, jsonStr);
+            Console.WriteLine("Output to: {0}", path);
         }
 
         /// <summary>
