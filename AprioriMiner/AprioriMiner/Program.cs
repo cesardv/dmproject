@@ -11,6 +11,9 @@ namespace AprioriMiner
 {
     using System;
     using System.Collections.Generic;
+    using System.Data;
+    using System.IO;
+    using System.Linq;
 
     using AprioriMiner.Models;
 
@@ -35,6 +38,9 @@ namespace AprioriMiner
             Console.WriteLine("===================================");
             Console.WriteLine("  Welcome to AprioriMiner v1.0");
             Console.WriteLine("===================================");
+            Console.WriteLine(
+                "To run this program correctly the DataTransformer program must have been run correctly\nIf so, proceed...");
+
 
             var showMenu = true;
 
@@ -87,7 +93,7 @@ namespace AprioriMiner
             Console.WriteLine();
             Console.WriteLine("\ta)\tApriori mine MongoDB     ");
             Console.WriteLine("\tb)\tApriori mine from mysql        ");
-           //  Console.WriteLine("\tc)\t       ");
+            Console.WriteLine("\tc)\tHelp/Info/About       ");
             Console.WriteLine("\tQ)\tQuit                                     ");
             Console.WriteLine("\n***************************************************************");
 
@@ -108,56 +114,113 @@ namespace AprioriMiner
                     cont = PromptToContinue();
                     break;
                 case "c":
-                //case "C":
-                //    LittleTest();
-                //    cont = PromptToContinue();
-                //    break;
+                case "C":
+                    DisplayHelpInfo();
+                    cont = PromptToContinue();
+                    break;
                 case "q":
                 case "Q":
                     Console.WriteLine("\nQuitting...");
                     cont = false;
                     break;
-                default: Console.WriteLine("\n\nYour entry was not valid, please try again.");
+                default:
+                    Console.WriteLine("\n\nYour entry was not valid, please try again.");
                     break;
             }
             return cont;
         }
 
+        /// <summary>
+        /// Displays program info and help content
+        /// </summary>
+        private static void DisplayHelpInfo()
+        {
+            Console.Clear();
+            Console.WriteLine("=============================================\n\tHelp/Info Menu\n=============================================\n");
+            Console.WriteLine(
+                "For this program to be able to mine using Apriori correctly, the following must be true:");
+            Console.WriteLine(
+                "\t1) A MongoDB server with a db called 'learn' must be running on default localhost 27017 port. \n'receipts' is the collection name.\n");
+            Console.WriteLine(
+                "\t2) Transaction Data in csv format located in the '\\data\\' folder should be inserted into tha 'receipts' collection via the DataTransformer program.\n");
+            
+            Console.WriteLine("\t***NOTE:MongoDB is embedded with this app and should run automatically via the RunAprioriMiner.bat commands.\nMake sure you allow mongod.exe to connect thru private (local) network if Windows Firewall prompts you. It uses the localhost(127.0.0.1) to get connections locally.");
+            Console.WriteLine(
+                "For MySQL, (ver. 5.6) a local server named 'mysql56' with a database called 'dataminingdb' which has an 'itemstbl', and 'itemsets' tables.");
+            Console.WriteLine("Connect to that server using username: dmuser, and pwd='data'.");
+
+            Console.WriteLine("If you have any questions on how to run this please email me at cvelez2@student.gsu.edu - thanks.");
+
+        }
+
         private static void DataFromMongo()
         {
             double[] minsupminconf = PromptForMinsupAndConf();
+            var collneeded = PromptForDatasetSize();
+            var collectionNeeded = string.Empty;
+            switch (collneeded)
+            {
+                case 1:
+                    collectionNeeded = "receipts1k";
+                    break;
+                case 5:
+                    collectionNeeded = "receipts5k";
+                    break;
+                case 20:
+                    collectionNeeded = "receipts20k";
+                    break;
+                case 75:
+                    collectionNeeded = "receipts75k";
+                    break;
+                case 0:
+                    collectionNeeded = "receipts";
+                    break;
+                default:
+                    Console.WriteLine("Whooops something very bad has happened... Try again.");
+                    return;
+            }
+
             Console.WriteLine("\nConnecting to mongoDB...");
 
-            const string ConnStr = "mongodb://localhost:27017";
-            var clt = new MongoClient(ConnStr);
-            var svr = clt.GetServer();
-            var dblearn = svr.GetDatabase("learn");
-
-            // var tlist = dblearn.GetCollection("receipts");
-
-            var list = dblearn.GetCollection<Transaction>("receipts");
-
-            var all = list.FindAll();
             var database = new ItemsetCollection();
-            foreach (var transaction in all)
+            var start = DateTime.Now;
+            try
             {
-                var itemset = new Itemset();
-                foreach (var item in transaction.Items)
+                const string ConnStr = "mongodb://localhost:27017";
+                var clt = new MongoClient(ConnStr);
+                var svr = clt.GetServer();
+                var dblearn = svr.GetDatabase("learn");
+
+                // var tlist = dblearn.GetCollection("receipts");
+
+                var list = dblearn.GetCollection<Transaction>(collectionNeeded);
+                Console.WriteLine("Found Data!\nCollection Name: {0}\nSize: {1}", collectionNeeded, list.Count());
+                var all = list.FindAll();
+                
+                foreach (var transaction in all)
                 {
-                    itemset.Add(item);
+                    var itemset = new Itemset();
+                    foreach (var item in transaction.Items)
+                    {
+                        itemset.Add(item);
+                    }
+
+                    database.Add(itemset);
                 }
-
-                database.Add(itemset);
             }
-
-            var itemsunique = new Itemset();
-            var i = 0;
-            while (i < 50)
+            catch (Exception e)
             {
-                itemsunique.Add(i);
-                i++;
+                Console.WriteLine("There was an error, here are the details: \n=====================Error Stuff Here=====================\n" + e.Message + "\n==========================================================");
+                Console.WriteLine("Is the mongodb server running?? See the Help/Info section for help...");
+                return;
             }
 
+            var endqueryT = DateTime.Now;
+            var totalQueryT = start.Subtract(endqueryT);
+
+            var itemsunique = CreateSetOfUniqueItems();
+
+            Console.WriteLine("Disconnected from MongoDB server at {0}.\n Total query time was: {1}", endqueryT.ToLocalTime(), totalQueryT);
             Console.WriteLine("Now running Apriori on fetched data...");
 
             var large = AprioriMining.DoApriori(database, itemsunique, minsupminconf[0]);
@@ -185,7 +248,25 @@ namespace AprioriMiner
             }
 
             Console.WriteLine(results);
+            var finaltimeEnd = DateTime.Now;
+            Console.Write("It's now: {0}.\n\nTotal Apriori time was: {1}",finaltimeEnd.ToLocalTime(), endqueryT.Subtract(finaltimeEnd));
 
+        }
+
+        /// <summary>
+        /// Helper method for Apriori algorithm which just creates our itemset
+        /// </summary>
+        /// <returns></returns>
+        private static Itemset CreateSetOfUniqueItems()
+        {
+            var itemsunique = new Itemset();
+            var i = 0;
+            while (i < 50)
+            {
+                itemsunique.Add(i);
+                i++;
+            }
+            return itemsunique;
         }
 
         /// <summary>
@@ -224,7 +305,8 @@ namespace AprioriMiner
                 }
                 catch (Exception e)
                 {
-                    Console.Write("You either did not enter a number correctly or your number was too big! Try again...");
+                    Console.Write(
+                        "You either did not enter a number correctly or your number was too big! Try again...");
                     tries--;
                 }
             }
@@ -232,9 +314,247 @@ namespace AprioriMiner
             return ans;
         }
 
+        /// <summary>
+        /// Connects to MySQL in order to run AprioriMiner
+        /// </summary>
         private static void DataFromMysql()
         {
-            Console.WriteLine("Can't do this right now... try again later");
+            double[] minsupminconf = PromptForMinsupAndConf();
+            var tablechosen = PromptForDatasetSize();
+            var tableToMine = string.Empty;
+            switch (tablechosen)
+            {
+                case 1:
+                    tableToMine = "itemsets";
+                    break;
+                case 5:
+                    tableToMine = "itemsets5k";
+                    break;
+                case 20:
+                    tableToMine = "itemsets20k";
+                    break;
+                case 75:
+                    tableToMine = "itemsets75k";
+                    break;
+                default:
+                    Console.WriteLine("Whooops something very bad has happened... Try again.");
+                    return;
+            }
+
+            Console.WriteLine("Connecting to mysql server.... Trying to find table with {0}K transactions", tablechosen);
+            var database = new ItemsetCollection();
+            
+            var timeStartQuery = DateTime.Now;
+            Console.Write("Started querying DB at " + timeStartQuery.ToLocalTime());
+
+            using (var conn = new MySqlConnection("server=localhost;user=dmuser;database=DataMiningDb;port=3306;password=data;"))
+            {
+                try
+                {
+                    conn.Open();
+                    var rows = 0;
+
+                    rows = CountTransactions(conn, tableToMine);
+
+                    var cmd = conn.CreateCommand();
+
+                    for (var i = 1; i <= rows; i++)
+                    {
+                        
+                        cmd.CommandText = i == 1
+                                              ? (@"set profiling=1; SELECT itemID FROM dataminingdb." + tableToMine + " WHERE transId="
+                                                 + i)
+                                              : @"SELECT itemID FROM dataminingdb." + tableToMine + " WHERE transId=" + i;
+
+                        var reader = cmd.ExecuteReader();
+
+                        var listofItemsInRow = new Itemset();
+
+                        while (reader.Read())
+                        {
+                            listofItemsInRow.Add(reader.GetInt32(0));
+                        }
+
+                        database.Add(listofItemsInRow);
+                        reader.Close();
+                        // ============== LOG PROFILER DATA
+                        cmd.CommandText = "SHOW PROFILES";
+                        var pfdata = cmd.ExecuteReader();
+                        var rs = 0;
+                        
+                        var list = new List<object[]>();
+                        while (pfdata.Read())
+                        {
+                            var rowArray = new object[pfdata.FieldCount];
+                            rs = pfdata.GetValues(rowArray);
+                            list.Add(rowArray);
+                        }
+                        using (var swrtr = new StreamWriter(@"..\..\..\MysqlProfilerLog.csv", true))
+                        {
+                            // swrtr.WriteLine(DateTime.Now + " =  LOG  Success = {0}--------------------\n", rs);
+                            // Query Number,Time,SQLStatement
+                            foreach (var stringse in list)
+                            {
+                                if (stringse[2].Equals("SHOW WARNINGS"))
+                                {
+                                    continue;
+                                }
+
+                                foreach (var s in stringse)
+                                {
+                                    swrtr.Write(s + ",");
+                                    if (stringse.ElementAt(2) == s)
+                                    {
+                                        swrtr.Write("\n");
+                                    }
+                                }
+                                // swrtr.WriteLine(Environment.NewLine);
+                            }
+
+                        }
+
+                        // ==============
+
+                        pfdata.Close();
+                        // Writing profiler info to log file
+                        // RecordLog(conn);
+                    } // End of For Loop
+
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine("There was an error: {0}\n\n Consult the help menu.", e.Message);
+                }
+            }
+
+            // database (of ItemsetCollection should now be populated and ready for mining...
+            var endQueryT = DateTime.Now;
+
+            Console.WriteLine("\aEnded queries at: {0}\nTime elapsed: {1}\n\nNow running Apriori on fetched data...", endQueryT.ToLocalTime(), endQueryT.Subtract(timeStartQuery));
+
+            var large = AprioriMining.DoApriori(database, CreateSetOfUniqueItems(), minsupminconf[0]);
+
+            var results = "Results: \n\n " + large.Count + " supported Itemsets obtained by Apriori\n\n";
+            foreach (var itemset in large)
+            {
+                results += itemset.ToString() + "\n";
+            }
+
+            Console.WriteLine("DONE! Now mining association rules...");
+            var allRules = AprioriMining.Mine(database, large, minsupminconf[1]);
+
+            results += "\nAssociation Rules Found: \n";
+            if (allRules.Count == 0)
+            {
+                results += "No rules were found over minconf of " + minsupminconf[1] + "%";
+            }
+            else
+            {
+                foreach (var associationRule in allRules)
+                {
+                    results += associationRule.ToString() + "\n";
+                }
+            }
+
+            Console.WriteLine(results);
+            var finaltimeEnd = DateTime.Now;
+            Console.Write("Total Apriori time was: {0}", endQueryT.Subtract(finaltimeEnd));
+        }
+
+        private static int PromptForDatasetSize()
+        {
+            while (true)
+            {
+                Console.WriteLine("\nAvailable Dataset (sizes)\n***************************************************************");
+                Console.WriteLine();
+                Console.WriteLine("\ta)\t1000 Transactions    ");
+                Console.WriteLine("\tb)\t5000 Transactions           ");
+                Console.WriteLine("\tc)\t20,000 Transactions          ");
+                Console.WriteLine("\td)\t75,000 Transactions                                        ");
+                Console.WriteLine("\n***************************************************************");
+
+                Console.Write("From the Above Choices, choose the dataset size you want to mine: ");
+                var ans = Convert.ToString(Console.ReadKey().KeyChar);
+                Console.WriteLine();
+
+                switch (ans)
+                {
+                    case "a":
+                    case "A":
+                        return 1;
+                        break;
+                    case "b":
+                    case "B":
+                        return 5;
+                        break;
+                    case "c":
+                    case "C":
+                        return 20;
+                        break;
+                    case "d":
+                    case "D":
+                        return 75;
+                        break;
+                    default:
+                        Console.WriteLine("\n\nYour entry was not valid, please try again.");
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Uses MySQL profiler and appends to log file.
+        /// </summary>
+        /// <param name="conn">The connection to database</param>
+        private static void RecordLog(MySqlConnection conn)
+        {
+                    var profileCmd = conn.CreateCommand();
+                    profileCmd.CommandText = "SHOW PROFILES";
+                    var pfdata = profileCmd.ExecuteReader();
+                    var rs = 0;
+                    var rowArray = new object[pfdata.FieldCount];
+                    var list = new List<object[]>();
+                    while (pfdata.Read())
+                    {
+                        rs = pfdata.GetValues(rowArray);
+                        list.Add(rowArray);
+                    }
+                    using (var swrtr = new StreamWriter(@"..\..\..\MysqlProfilerLog.txt", true))
+                    {
+                        // swrtr.WriteLine(DateTime.Now + " =  LOG  Success = {0}--------------------\n", rs);
+                        foreach (var stringse in list)
+                        {
+                            foreach (var s in stringse)
+                            {
+                                swrtr.Write(s + ", ");
+                            }
+                            swrtr.WriteLine(Environment.NewLine);
+                        }
+
+                    }
+        }
+
+        /// <summary>
+        /// counts the table's rows
+        /// </summary>
+        /// <param name="conn">connection to database</param>
+        /// <param name="tblname">name of table we'll query</param>
+        /// <returns>Number of rows/transaction found</returns>
+        private static int CountTransactions(MySqlConnection conn, string tblname)
+        {
+            
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT transID, COUNT( DISTINCT transID) FROM dataminingdb." + tblname;
+            var data = cmd.ExecuteReader();
+            if (data.Read())
+            {
+                var numTrans = data.GetInt32(1);
+                Console.WriteLine("Found {0} transactions...\n", numTrans);
+                data.Close();
+                return numTrans;
+            }
+
+            throw new Exception("There was an error...");
         }
     }
 }

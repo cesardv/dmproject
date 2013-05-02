@@ -8,8 +8,9 @@
     using System.Threading.Tasks;
     using System.Windows.Forms;
 
-    using MongoDB.Driver;
     using MongoDB.Bson;
+    using MongoDB.Driver;
+    using MongoDB.Driver.Builders;
 
     using MySql.Data.MySqlClient;
 
@@ -52,7 +53,7 @@
             Console.WriteLine("\n***************************************************************");
             Console.WriteLine("\n\tMAIN MENU OPTIONS: ");
             Console.WriteLine();
-            Console.WriteLine("\ta)\tProcess data into MongoDB (JSON or BSON format)    ");
+            Console.WriteLine("\ta)\tProcess data into MongoDB    ");
             Console.WriteLine("\tb)\tProcess data into mysql        ");
             Console.WriteLine("\tc)\tCheck out a little test        ");
             Console.WriteLine("\tQ)\tQuit                                     ");
@@ -95,7 +96,23 @@
         /// </summary>
         private static void LittleTest()
         {
-            Console.WriteLine("This is under construction... sorry");
+            Console.WriteLine("This is queries the mongoDB system.profile collection for performance data...");
+            const string ConnStr = "mongodb://localhost:27017";
+            var clt = new MongoClient(ConnStr);
+            var svr = clt.GetServer();
+            var db = svr.GetDatabase("learn");
+            var col = db.GetCollection<BsonDocument>("system.profile");
+            
+            //var strDump = col.FindAll().ToJson();
+            //File.WriteAllText(@"..\..\sysPF-" + DateTime.Now.Ticks + ".log", strDump);
+            //var t = new { millis = 0 };
+            //var q = BsonDocument.Create("{'op':'insert'}");
+            var qb = Query.EQ("op", "insert");
+            var results = col.Find(qb);
+            var jsonStr = results.ToJson();
+            var path = @"..\..\sysPF-" + DateTime.Now.Ticks + ".log";
+            File.WriteAllText(path, jsonStr);
+            Console.WriteLine("Output to: {0}", path);
         }
 
         /// <summary>
@@ -208,7 +225,7 @@
         private static void DataToMysql()
         {
             var datafile = GetDatafilePath();
-
+            var datasetChoice = WhereToInsertData(); // Todo: probably should hard-wire selection of datafile since user can choose one size file and tell the program a different thing
             var transList = new List<Transaction>();
 
             using (var reader = new StreamReader(datafile))
@@ -228,16 +245,20 @@
             }
 
             // now insert into DB
-            Console.WriteLine("Populate Items List? (Y|N)");
+            Console.WriteLine("Populate Items List? (Y|N) (Choose No if you already did or don't know...)");
             var key = Console.ReadKey();
             if (key.KeyChar == 'y')
             {
                 PopulateItemsTable(transList);
             }
 
-            InsertIntoMysql(transList);
+            InsertIntoMysql(transList, datasetChoice);
         }
 
+        /// <summary>
+        /// Populates the MySQL 'itemstbl' where there's a column for itemID and itemname. ONLY used on first run.
+        /// </summary>
+        /// <param name="transList">List of transactions from ehich to extract the items</param>
         private static void PopulateItemsTable(List<Transaction> transList)
         {
             using (var conn = new MySqlConnection("server=localhost;user=cesar;database=DataMiningDb;port=3306;password=tobytobias;"))
@@ -271,14 +292,34 @@
         }
 
 
-        private static void InsertIntoMysql(List<Transaction> list)
+        private static void InsertIntoMysql(List<Transaction> list, int choicedatasetsize)
         {
+            var table = string.Empty;
+            switch (choicedatasetsize)
+            {
+                case 1:
+                    table = "itemsets";
+                    break;
+                case 5:
+                    table = "itemsets5k";
+                    break;
+                case 20:
+                    table = "itemsets20k";
+                    break;
+                case 75:
+                    table = "itemsets75k";
+                    break;
+                default:
+                    Console.WriteLine("Whooops something very bad has happened... Try again.");
+                    return;
+            }
+
             using (var conn = new MySqlConnection("server=localhost;user=cesar;database=DataMiningDb;port=3306;password=tobytobias;"))
             {
                 try
                 {
                     conn.Open();
-                    var insertSql = @"INSERT INTO itemsets (transID, itemID) VALUES (@transID, @itemID)";
+                    var insertSql = string.Format(@"INSERT INTO {0} (transID, itemID) VALUES (@transID, @itemID)", table);
 
                     foreach (var trans in list)
                     {
@@ -317,6 +358,51 @@
         private static Transaction CreateTrans(string[] row)
         {
             return new Transaction(row);
+        }
+
+        /// <summary>
+        /// Chooses which dataset to use
+        /// </summary>
+        /// <returns></returns>
+        private static int WhereToInsertData()
+        {
+            while (true)
+            {
+                Console.WriteLine("\nAvailable Dataset (sizes)\n***************************************************************");
+                Console.WriteLine();
+                Console.WriteLine("\ta)\t1000 Transactions    ");
+                Console.WriteLine("\tb)\t5000 Transactions           ");
+                Console.WriteLine("\tc)\t20,000 Transactions          ");
+                Console.WriteLine("\td)\t75,000 Transactions                                        ");
+                Console.WriteLine("\n***************************************************************");
+
+                Console.Write("From the Above Choices, which set of data did you select: ");
+                var ans = Convert.ToString(Console.ReadKey().KeyChar);
+                Console.WriteLine();
+                
+                switch (ans)
+                {
+                    case "a":
+                    case "A":
+                        return 1;
+                        break;
+                    case "b":
+                    case "B":
+                        return 5;
+                        break;
+                    case "c":
+                    case "C":
+                        return 20;
+                        break;
+                    case "d":
+                    case "D":
+                        return 75;
+                        break;
+                    default:
+                        Console.WriteLine("\n\nYour entry was not valid, please try again.");
+                        break;
+                }
+            }
         }
     }
 }
